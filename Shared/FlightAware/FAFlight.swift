@@ -58,6 +58,7 @@ struct FAFlight {
 
 extension FAFlight {
     
+    // enum CodingKeys to convert data name to variable name like "aircrafttype" to "aircraft"
     private enum CodingKeys: String, CodingKey {
         case ident
         case aircraft = "aircrafttype"

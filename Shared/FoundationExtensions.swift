@@ -21,4 +21,13 @@ extension String {
     func contains(elementIn array: [String]) -> Bool {
         array.contains(where: { self.contains($0) })
     }
+    
+    var trim: String {
+        var trimmed = self.drop(while: { $0.isWhitespace })
+        while trimmed.last?.isWhitespace ?? false {
+            trimmed = trimmed.dropLast()
+        }
+        return String(trimmed)
+        
+    }
 }
