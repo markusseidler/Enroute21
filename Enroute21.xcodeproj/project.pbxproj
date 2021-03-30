@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		280D0EA72612EFC700DBFBF4 /* FlightAwareRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 280D0EA62612EFC700DBFBF4 /* FlightAwareRequest.swift */; };
 		282C00472611976200D7FCFC /* AirportInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 282C00462611976200D7FCFC /* AirportInfo.swift */; };
 		28AF4586260F48440052EDCA /* Tests_iOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28AF4585260F48440052EDCA /* Tests_iOS.swift */; };
 		28AF4591260F48440052EDCA /* Tests_macOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28AF4590260F48440052EDCA /* Tests_macOS.swift */; };
@@ -41,6 +42,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		280D0EA62612EFC700DBFBF4 /* FlightAwareRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlightAwareRequest.swift; sourceTree = "<group>"; };
 		282C00462611976200D7FCFC /* AirportInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportInfo.swift; sourceTree = "<group>"; };
 		28AF456A260F48430052EDCA /* Enroute21App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Enroute21App.swift; sourceTree = "<group>"; };
 		28AF456B260F48430052EDCA /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -173,6 +175,7 @@
 				28AF45BD260F4E370052EDCA /* FAFlight.swift */,
 				28AF45C9260F611D0052EDCA /* AirlineInfo.swift */,
 				282C00462611976200D7FCFC /* AirportInfo.swift */,
+				280D0EA62612EFC700DBFBF4 /* FlightAwareRequest.swift */,
 			);
 			path = FlightAware;
 			sourceTree = "<group>";
@@ -337,6 +340,7 @@
 			files = (
 				28AF45BE260F4E370052EDCA /* FAFlight.swift in Sources */,
 				28AF45B8260F4A770052EDCA /* FoundationExtensions.swift in Sources */,
+				280D0EA72612EFC700DBFBF4 /* FlightAwareRequest.swift in Sources */,
 				28AF45CA260F611D0052EDCA /* AirlineInfo.swift in Sources */,
 				28AF45AE260F4A430052EDCA /* FlightSimulationData.swift in Sources */,
 				28AF4595260F48440052EDCA /* ContentView.swift in Sources */,

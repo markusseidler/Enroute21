@@ -9,13 +9,13 @@ import Foundation
 
 // json decoded directly from what comes back from FlightAware's "AirportInfo?"
 
-struct AirportInfo {
+struct AirportInfo: Codable, Hashable, Identifiable, Comparable {
     
     // Example Data
     //    "{\"AirportInfoResult\":{\"name\":\"Shanghai Pudong Int\'l\",\"location\":\"Shanghai\",\"longitude\":121.792367,\"latitude\":31.142797,\"timezone\":\":Asia/Shanghai\"}}\n", "AirportInfo?airportCode=KPSP"
     
     var icao: String?
-    var friendlyName: String { }
+    var friendlyName: String { Self.friendlyName(name: name, location: location) }
     var id: String { icao ?? name }
     
     private(set) var latitude: String
@@ -49,6 +49,11 @@ struct AirportInfo {
         } else {
             return location
         }
-        
     }
+    
+    static func < (lhs: AirportInfo, rhs: AirportInfo) -> Bool {
+        lhs.id < rhs.id
+    }
+    
+    
 }
