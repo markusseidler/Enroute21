@@ -31,6 +31,10 @@ class FlightAwareRequest<Fetched> where Fetched: Codable, Fetched: Hashable {
     // a CurrentValueSubject is a Publisher that holds a value
     // and publishes it whenever it changes
     
+    var fetchTimer: Timer? // so that subclasses can throttle fetches of their kind of object
+    var query: String { "" } // e.g. Enroute?airport=KSFO
+    var offset: Int = 0
+    
     private(set) var results = CurrentValueSubject<Set<Fetched>, Never>([])
     private(set) var fetchInterval: TimeInterval = 0
 
@@ -41,6 +45,10 @@ class FlightAwareRequest<Fetched> where Fetched: Codable, Fetched: Hashable {
     // some functions are missing... need to figure out why they are needed
     
     // MARK: - Private Data
+    
+    private var fetchCancellable: AnyCancellable?
+    private var fetchSequenceCount: Int = 0
+    private var urlRequest: URLRequest? { Self.authorizedURLRequest(query: query) }
     
     // MARK: - Fetching
     
@@ -54,8 +62,55 @@ class FlightAwareRequest<Fetched> where Fetched: Codable, Fetched: Hashable {
         }
     }
     
+    func stopFetching() {
+        fetchCancellable?.cancel()
+        fetchTimer?.invalidate()
+        fetchInterval = 0
+        fetchSequenceCount = 0
+    }
     
+    // immediately fetches new data (from cache if available and requested)
+    // and, when that data returns, calls handleResults with it
+    // (which will schedule the next fetch if appropriate)
     
+    func fetchAction(useCache: Bool = true) {
+        
+        if !useCache || !fetchFromCache() {
+            if let urlRequest = self.urlRequest {
+                print("fetching \(urlRequest)")
+                
+                if offset == 0 {
+                    fetchSequenceCount = 0
+                }
+                
+                
+                //type issue??
+                fetchCancellable = URLSession.shared.dataTaskPublisher(for: urlRequest).map {
+                    [weak self] data, response in
+                    return self?.decode(data) ?? []
+                }
+                
+                
+                
+//                fetchCancellable = URLSession.shared.dataTaskPublisher(for: urlRequest)
+//                    .map { [weak self] data, response in
+//                        return self?.decode(data) ?? []
+//                    }
+                
+            }
+        }
+        
+    }
+    
+    private func fetchFromCache() -> Bool {
+        
+    }
+    
+    // MARK: - Utility
+    
+    static func authorizedURLRequest(query: String, credentials: String? = Bundle.main.object(forInfoDictionaryKey: "FlightAware Credentials") as? String) -> URLRequest {
+        
+    }
     
     
     
