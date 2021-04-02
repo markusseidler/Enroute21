@@ -30,4 +30,6 @@ extension String {
         return String(trimmed)
         
     }
+    
+    var base64: String? { self.data(using: .utf8)?.base64EncodedString() }
 }

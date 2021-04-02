@@ -31,24 +31,38 @@ class FlightAwareRequest<Fetched> where Fetched: Codable, Fetched: Hashable {
     // a CurrentValueSubject is a Publisher that holds a value
     // and publishes it whenever it changes
     
-    var fetchTimer: Timer? // so that subclasses can throttle fetches of their kind of object
-    var query: String { "" } // e.g. Enroute?airport=KSFO
     var offset: Int = 0
+    let batchSize: Int = 15
+    lazy var howMany: Int = batchSize
     
     private(set) var results = CurrentValueSubject<Set<Fetched>, Never>([])
     private(set) var fetchInterval: TimeInterval = 0
-
     
-    // need to add variables here as they come...
+    // MARK: - Subclassers Overriding
     
+    var cacheKey: String? { return nil } // nil means no cacheing
+    var query: String { "" } // e.g. Enroute?airport=KSFO
+    var fetchTimer: Timer? // so that subclasses can throttle fetches of their kind of object
     func decode(_ json: Data) -> Set<Fetched> { Set<Fetched>() } // json is JSON received from FlightAware
-    // some functions are missing... need to figure out why they are needed
+    func filter(_ results: Set<Fetched>) -> Set<Fetched> { results }
     
     // MARK: - Private Data
     
     private var fetchCancellable: AnyCancellable?
     private var fetchSequenceCount: Int = 0
     private var urlRequest: URLRequest? { Self.authorizedURLRequest(query: query) }
+    
+    
+    private var cacheData: Data? { cacheKey != nil ? UserDefaults.standard.data(forKey: cacheKey!) : nil}
+    private var cacheTimestampKey: String { (cacheKey ?? "" ) + ".timestamp" }
+    private var cacheAge: TimeInterval? {
+        let since1970 = UserDefaults.standard.double(forKey: cacheTimestampKey)
+        if since1970 > 0 {
+            return Date.currentFlightTime.timeIntervalSince1970 - since1970
+        } else {
+            return nil
+        }
+    }
     
     // MARK: - Fetching
     
@@ -83,38 +97,113 @@ class FlightAwareRequest<Fetched> where Fetched: Codable, Fetched: Hashable {
                     fetchSequenceCount = 0
                 }
                 
-                
-                //type issue??
                 fetchCancellable = URLSession.shared.dataTaskPublisher(for: urlRequest).map {
                     [weak self] data, response in
                     return self?.decode(data) ?? []
                 }
-                
-                
-                
-//                fetchCancellable = URLSession.shared.dataTaskPublisher(for: urlRequest)
-//                    .map { [weak self] data, response in
-//                        return self?.decode(data) ?? []
-//                    }
-                
+                .replaceError(with: [])
+                .receive(on: DispatchQueue.main)
+                .sink{ [weak self] results in
+                    self?.handleResults(results)
+                }
+            } else {
+                if let json = flightSimulationData[query]?.data(using: .utf8) {
+                    print("simulating \(query)")
+                    handleResults(decode(json), isCacheable: false)
+                }
             }
         }
         
     }
     
-    private func fetchFromCache() -> Bool {
+    // unions the newResults with our existing results.value
+    // keeps fetching immediately (1s later) if ...
+    //   our results.value.count < howMany
+    //   and we haven't done howMany/15 fetches in a row (throttle)
+    // otherwise schedules our next fetch after fetchInterval (and caches results)
+    private func handleResults(_ newResults: Set<Fetched>, age: TimeInterval = 0, isCacheable: Bool = true) {
+        let existingCount = results.value.count
+        let newValue = fetchSequenceCount > 0 ? results.value.union(newResults) : newResults.union(results.value)
+        let added = newValue.count - existingCount
+         
+        results.value = filter(newValue)
         
+        let sequencing = age == 0 && added == batchSize && results.value.count < howMany && fetchSequenceCount < (howMany-(batchSize-1)) / batchSize
+        
+        let interval = sequencing ? 1 : (age > 0 && age < fetchInterval) ? fetchInterval - age : fetchInterval
+        if isCacheable, age == 0, !sequencing {
+            cache(newValue)
+        }
+        
+        if interval > 0 { // }, urlRequest != nil {
+            if sequencing {
+                fetchSequenceCount += 1
+            } else {
+                offset = 0
+                fetchSequenceCount = 0
+            }
+            fetchTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false, block: { [weak self] timer in
+                if (self?.fetchInterval ?? 0) > 0 || (self?.fetchSequenceCount ?? 0) > 0 {
+                    self?.fetchAction()
+                }
+            })
+        }
+    }
+    
+    // MARK: - Cacheing
+    
+    // this is mostly because, during a demo, we're constantly re-launching the application
+    // and there's no need to be refetching data that was just fetched
+    // the real solution to this is to make the data persistent
+    // (for example, in Core Data)
+    
+    private func fetchFromCache() -> Bool { // returns whether we were able to
+        if fetchSequenceCount == 0, let key = cacheKey, let age = cacheAge {
+            if age > 0, (fetchInterval == 0) || (age < fetchInterval) || urlRequest == nil, let data = cacheData {
+                if let cachedResults = try? JSONDecoder().decode(Set<Fetched>.self, from: data) {
+                    print("using \(Int(age))s old cache \(key)")
+                    handleResults(cachedResults, age: age)
+                    return true
+                } else {
+                    print("couldn't decode information from \(Int(age))s old cache \(cacheKey!)")
+                }
+            }
+        }
+        return false
+    }
+    
+    private func cache(_ results: Set<Fetched>) {
+        if let key = self.cacheKey, let data = try? JSONEncoder().encode(results) {
+            print("caching \(key) at \(DateFormatter.short.string(from: Date.currentFlightTime))")
+            UserDefaults.standard.set(Date.currentFlightTime.timeIntervalSince1970, forKey: self.cacheTimestampKey)
+            UserDefaults.standard.set(data, forKey: key)
+        }
     }
     
     // MARK: - Utility
     
-    static func authorizedURLRequest(query: String, credentials: String? = Bundle.main.object(forInfoDictionaryKey: "FlightAware Credentials") as? String) -> URLRequest {
-        
+    static func authorizedURLRequest(query: String, credentials: String? = Bundle.main.object(forInfoDictionaryKey: "FlightAware Credentials") as? String) -> URLRequest? {
+        let flightAware = "https://flightxml.flightaware.com/json/FlightXML2/"
+        if let url = URL(string: flightAware + query), let credentials = (credentials?.isEmpty ?? true) ? nil : credentials?.base64 {
+            var request = URLRequest(url: url)
+            request.setValue("Basic \(credentials)", forHTTPHeaderField: "Authorization")
+            return request
+        }
+        return nil
     }
     
+
+}
+
+extension Date {
+    private static let launch = Date()
     
-    
-    
-    
-    
+    static var currentFlightTime: Date {
+        let credentials = Bundle.main.object(forInfoDictionaryKey: "FlightAware Credentials") as? String
+        if credentials == nil || credentials!.isEmpty, !flightSimulationData.isEmpty, let simulationDate = flightSimulationDate {
+            return simulationDate.addingTimeInterval(Date().timeIntervalSince(launch))
+        } else {
+            return Date()
+        }
+    }
 }
